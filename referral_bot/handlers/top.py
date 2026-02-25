@@ -4,8 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from database.models import User
-from handlers.button_helper import answer_with_content
 from keyboards.main import back_to_menu_kb
+from handlers.button_helper import safe_edit_or_send
 
 router = Router()
 
@@ -61,5 +61,5 @@ async def cb_top(callback: CallbackQuery, session: AsyncSession, db_user: User) 
         f"⭐ Заработано: {db_user.stars_balance:.0f}"
     )
 
-    await answer_with_content(callback, session, "menu:top", "\n".join(lines), back_to_menu_kb())
+    await safe_edit_or_send(callback, "\n".join(lines), back_to_menu_kb())
     await callback.answer()

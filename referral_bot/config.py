@@ -14,7 +14,7 @@ class Config:
         )
     )
     ADMIN_CHANNEL_ID: int = int(os.getenv("ADMIN_CHANNEL_ID", "0"))
-    FLYER_KEY: str = os.getenv("FLYER_KEY", "")
+    SUBGRAM_TOKEN: str = os.getenv("SUBGRAM_TOKEN", "")
     BOT_USERNAME: str = os.getenv("BOT_USERNAME", "")
     REFERRAL_REWARD: float = float(os.getenv("REFERRAL_REWARD", "5"))
     BONUS_COOLDOWN_HOURS: int = int(os.getenv("BONUS_COOLDOWN_HOURS", "24"))

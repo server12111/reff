@@ -1,10 +1,3 @@
-from database.engine import engine
-from database.models import Base
+from database.engine import init_db, SessionFactory, get_setting, set_setting
 
-
-async def init_db() -> None:
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-
-__all__ = ["init_db"]
+__all__ = ["init_db", "SessionFactory", "get_setting", "set_setting"]

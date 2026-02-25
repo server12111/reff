@@ -16,7 +16,16 @@ def main_menu_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🎮 Игры", callback_data="menu:games"),
     )
     builder.row(InlineKeyboardButton(text="💰 Вывод", callback_data="menu:withdraw"))
-    builder.row(InlineKeyboardButton(text="ℹ️ Как это работает", callback_data="menu:how"))
+    return builder.as_markup()
+
+
+def subgram_kb(sponsors: list[dict]) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for sp in sponsors:
+        builder.row(
+            InlineKeyboardButton(text=f"📢 {sp.get('name', 'Подписаться')}", url=sp.get("link", ""))
+        )
+    builder.row(InlineKeyboardButton(text="✅ Я подписался", callback_data="subgram:check"))
     return builder.as_markup()
 
 

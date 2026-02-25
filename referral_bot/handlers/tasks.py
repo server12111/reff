@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from database.models import User, Task, TaskCompletion
-from handlers.button_helper import answer_with_content, safe_edit
 from keyboards.main import tasks_list_kb, task_detail_kb, back_to_tasks_kb, back_to_menu_kb
+from handlers.button_helper import safe_edit_or_send
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -24,16 +24,16 @@ async def cb_tasks_menu(callback: CallbackQuery, session: AsyncSession, db_user:
     )).scalars().all())
 
     if not tasks:
-        await answer_with_content(
-            callback, session, "menu:tasks",
+        await safe_edit_or_send(
+            callback,
             "📋 <b>Задания</b>\n\nПока нет активных заданий.",
             back_to_menu_kb(),
         )
         await callback.answer()
         return
 
-    await answer_with_content(
-        callback, session, "menu:tasks",
+    await safe_edit_or_send(
+        callback,
         "📋 <b>Задания</b>\n\nВыполняй задания и получай звёзды:",
         tasks_list_kb(tasks, completed_ids),
     )
@@ -65,7 +65,7 @@ async def cb_task_view(callback: CallbackQuery, session: AsyncSession, db_user: 
     if task.task_type == "referrals" and task.target_value:
         extra = f"\n🎯 Нужно рефералов: <b>{task.target_value}</b>\nТвоих рефералов: <b>{db_user.referrals_count}</b>"
 
-    await safe_edit(
+    await safe_edit_or_send(
         callback,
         f"📌 <b>{task.title}</b>\n\n"
         f"{task.description}\n\n"
@@ -141,7 +141,7 @@ async def cb_task_check(callback: CallbackQuery, session: AsyncSession, db_user:
     db_user.stars_balance += task.reward
     await session.commit()
 
-    await safe_edit(
+    await safe_edit_or_send(
         callback,
         f"✅ Вы получили <b>{task.reward} ⭐</b> за выполнение задания!\n\n"
         f"<b>{task.title}</b>\n"

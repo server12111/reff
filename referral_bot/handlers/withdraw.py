@@ -8,10 +8,10 @@ from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import User, Withdrawal, BotSettings
-from handlers.button_helper import answer_with_content, safe_edit
 from keyboards.withdraw import withdraw_amounts_kb, captcha_cancel_kb, withdraw_success_kb
 from keyboards.admin import withdrawal_actions_kb
 from keyboards.main import back_to_menu_kb, main_menu_kb
+from handlers.button_helper import safe_edit_or_send
 from config import config
 
 router = Router()
@@ -45,10 +45,10 @@ def _gen_captcha() -> tuple[int, int]:
 
 
 @router.callback_query(lambda c: c.data == "menu:withdraw")
-async def cb_withdraw(callback: CallbackQuery, session: AsyncSession, db_user: User) -> None:
+async def cb_withdraw(callback: CallbackQuery, db_user: User) -> None:
     if not db_user.username:
-        await answer_with_content(
-            callback, session, "menu:withdraw",
+        await safe_edit_or_send(
+            callback,
             "❗ Для вывода средств необходимо задать username в Telegram.\n\n"
             "Установи username в настройках Telegram и попробуй снова.",
             back_to_menu_kb(),
@@ -56,12 +56,13 @@ async def cb_withdraw(callback: CallbackQuery, session: AsyncSession, db_user: U
         await callback.answer()
         return
 
-    default_text = (
+    await safe_edit_or_send(
+        callback,
         f"💰 <b>Вывод звёзд</b>\n\n"
         f"Твой баланс: <b>{db_user.stars_balance:.2f} ⭐</b>\n\n"
-        f"Выбери сумму для вывода:"
+        f"Выбери сумму для вывода:",
+        withdraw_amounts_kb(),
     )
-    await answer_with_content(callback, session, "menu:withdraw", default_text, withdraw_amounts_kb())
     await callback.answer()
 
 
@@ -91,7 +92,7 @@ async def cb_withdraw_amount(callback: CallbackQuery, db_user: User, state: FSMC
     await state.set_state(WithdrawStates.captcha)
     await state.update_data(withdraw_amount=amount, captcha_a=a, captcha_b=b, captcha_attempts=0)
 
-    await safe_edit(
+    await safe_edit_or_send(
         callback,
         f"🛡 <b>Подтвердите, что вы не бот.</b>\n\n"
         f"Сколько будет:\n<b>{a} + {b} = ?</b>",
@@ -103,7 +104,7 @@ async def cb_withdraw_amount(callback: CallbackQuery, db_user: User, state: FSMC
 @router.callback_query(lambda c: c.data == "withdraw:cancel")
 async def cb_captcha_cancel(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
-    await callback.message.edit_text("👋 Главное меню:", reply_markup=main_menu_kb())
+    await safe_edit_or_send(callback, "👋 Главное меню:", main_menu_kb(), parse_mode=None)
     await callback.answer()
 
 

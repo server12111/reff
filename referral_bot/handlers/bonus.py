@@ -6,8 +6,8 @@ from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import User, BotSettings
-from handlers.button_helper import answer_with_content
 from keyboards.main import back_to_menu_kb
+from handlers.button_helper import safe_edit_or_send
 from config import config
 
 router = Router()
@@ -36,11 +36,12 @@ async def cb_bonus(callback: CallbackQuery, session: AsyncSession, db_user: User
             remaining = next_bonus - now
             hours, remainder = divmod(int(remaining.total_seconds()), 3600)
             minutes, seconds = divmod(remainder, 60)
-            cooldown_text = (
+            await safe_edit_or_send(
+                callback,
                 f"⏳ Бонус уже получен.\n\n"
-                f"Следующий бонус будет доступен через: <b>{hours:02d}:{minutes:02d}:{seconds:02d}</b>"
+                f"Следующий бонус будет доступен через: <b>{hours:02d}:{minutes:02d}:{seconds:02d}</b>",
+                back_to_menu_kb(),
             )
-            await answer_with_content(callback, session, "menu:bonus", cooldown_text, back_to_menu_kb())
             await callback.answer()
             return
 
@@ -52,9 +53,10 @@ async def cb_bonus(callback: CallbackQuery, session: AsyncSession, db_user: User
     db_user.last_bonus_at = now
     await session.commit()
 
-    bonus_text = (
+    await safe_edit_or_send(
+        callback,
         f"🎁 Вам начислено <b>{amount} ⭐</b> бонуса!\n\n"
-        f"Текущий баланс: <b>{db_user.stars_balance:.2f} ⭐</b>"
+        f"Текущий баланс: <b>{db_user.stars_balance:.2f} ⭐</b>",
+        back_to_menu_kb(),
     )
-    await answer_with_content(callback, session, "menu:bonus", bonus_text, back_to_menu_kb())
     await callback.answer(f"+{amount} ⭐")

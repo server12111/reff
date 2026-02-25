@@ -6,6 +6,10 @@ from aiogram.types import TelegramObject, Message, CallbackQuery
 from database.engine import SessionFactory
 from config import config
 
+# Callbacks/commands that manage their own subgram check — skip middleware for them
+_SUBGRAM_SKIP_CALLBACKS = {"subgram:check"}
+_SUBGRAM_SKIP_COMMANDS = {"/start", "/admin"}
+
 
 class SessionMiddleware(BaseMiddleware):
     """Injects async DB session into every handler."""
@@ -21,18 +25,13 @@ class SessionMiddleware(BaseMiddleware):
             return await handler(event, data)
 
 
-class FlyerMiddleware(BaseMiddleware):
+class SubgramMiddleware(BaseMiddleware):
     """
-    Enforces Flyer channel-subscription check before any bot feature.
-
-    /admin is whitelisted — admins always bypass.
-    When FLYER_KEY is not set in .env the check is skipped entirely.
-    If the user is not subscribed, Flyer sends the subscription wall
-    automatically — no extra message is needed from our side.
+    Enforces Subgram subscription check before any bot feature.
+    /start and subgram:check are whitelisted — they manage the check themselves.
+    Admins bypass the check entirely.
+    Successful verifications are cached in-memory for 24 hours.
     """
-
-    # Commands that never go through the Flyer check
-    _SKIP_COMMANDS = {"/admin"}
 
     async def __call__(
         self,
@@ -40,16 +39,27 @@ class FlyerMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
-        from services.flyer import check_subscription
+        from services.subgram import check_user
+        from keyboards.main import subgram_kb
 
         if isinstance(event, Message):
             user = event.from_user
+            chat_id = event.chat.id
             text = event.text or ""
-            if any(text.startswith(cmd) for cmd in self._SKIP_COMMANDS):
+            # Whitelist: /start handles subgram itself
+            if any(text.startswith(cmd) for cmd in _SUBGRAM_SKIP_COMMANDS):
                 return await handler(event, data)
+            send = event.answer
+            answer_cb = None
 
         elif isinstance(event, CallbackQuery):
             user = event.from_user
+            chat_id = event.message.chat.id
+            # Whitelist: subgram:check handles verification itself
+            if event.data in _SUBGRAM_SKIP_CALLBACKS:
+                return await handler(event, data)
+            send = event.message.answer
+            answer_cb = event.answer
 
         else:
             return await handler(event, data)
@@ -57,26 +67,36 @@ class FlyerMiddleware(BaseMiddleware):
         if user is None:
             return await handler(event, data)
 
-        # Admins always bypass
+        # Admins bypass subgram
         if user.id in config.ADMIN_IDS:
             return await handler(event, data)
 
-        subscribed = await check_subscription(
+        result = await check_user(
             user_id=user.id,
-            language_code=user.language_code,
+            chat_id=chat_id,
+            first_name=user.first_name,
+            username=user.username,
+            language_code=getattr(user, "language_code", None),
+            is_premium=bool(getattr(user, "is_premium", False)),
         )
 
-        if not subscribed:
-            # Flyer already sent the subscription wall to the user.
-            # For callback queries we must answer to remove the loading spinner.
-            if isinstance(event, CallbackQuery):
-                try:
-                    await event.answer()
-                except Exception:
-                    pass
-            return  # block further handler execution
+        if result.status == "ok":
+            return await handler(event, data)
 
-        return await handler(event, data)
+        # Must answer callback query before sending a new message
+        if answer_cb:
+            try:
+                await answer_cb()
+            except Exception:
+                pass
+
+        if result.status == "warning":
+            await send(
+                "📋 Для доступа к боту необходимо подписаться на наших спонсоров:",
+                reply_markup=subgram_kb(result.sponsors),
+            )
+        else:  # error
+            await send("⚠️ Временно недоступна проверка подписки. Попробуйте позже.")
 
 
 class RegisteredUserMiddleware(BaseMiddleware):

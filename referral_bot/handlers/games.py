@@ -8,11 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from database.models import User, GameSession, BotSettings
-from handlers.button_helper import answer_with_content, safe_edit
 from keyboards.games import (
     games_menu_kb, dice_side_kb, game_result_kb, game_cancel_kb,
     GAME_TYPES, GAME_LABELS,
 )
+from handlers.button_helper import safe_edit_or_send
 
 router = Router()
 
@@ -220,15 +220,15 @@ async def cb_games_menu(
     has_any = any(cfg["enabled"] for cfg in configs.values())
 
     if has_any:
-        default_text = (
+        text = (
             f"🎮 <b>Игры</b>\n\n"
             f"Твой баланс: <b>{db_user.stars_balance:.2f} ⭐</b>\n\n"
             f"Выбери игру:"
         )
     else:
-        default_text = "🎮 <b>Игры</b>\n\nИгры временно недоступны."
+        text = "🎮 <b>Игры</b>\n\nИгры временно недоступны."
 
-    await answer_with_content(callback, session, "menu:games", default_text, games_menu_kb(configs))
+    await safe_edit_or_send(callback, text, games_menu_kb(configs))
     await callback.answer()
 
 
@@ -274,13 +274,13 @@ async def cb_game_play(
     await state.set_state(GameStates.enter_bet)
     await state.update_data(game_type=game_type)
 
-    await safe_edit(
-        callback,
+    await callback.message.edit_text(
         f"<b>{GAME_LABELS[game_type]}</b>\n\n"
         f"💰 Твой баланс: <b>{db_user.stars_balance:.2f} ⭐</b>\n"
         f"Минимальная ставка: <b>{min_bet:.0f} ⭐</b>\n\n"
         f"Введи сумму ставки:",
-        game_cancel_kb(),
+        parse_mode="HTML",
+        reply_markup=game_cancel_kb(),
     )
     await callback.answer()
 

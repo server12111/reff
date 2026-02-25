@@ -176,7 +176,6 @@ BUTTON_KEYS: dict[str, str] = {
     "menu:top":       "🏆 Топ",
     "menu:games":     "🎮 Игры",
     "menu:withdraw":  "💰 Вывод",
-    "menu:how":       "ℹ️ Как это работает",
 }
 
 
